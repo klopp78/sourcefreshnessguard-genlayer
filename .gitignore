@@ -2,7 +2,6 @@ node_modules/
 dist/
 .next/
 .sites/
-.openai/
 contracts/__pycache__/
 *.pyc
 .env*
