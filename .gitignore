@@ -2,6 +2,7 @@ node_modules/
 dist/
 .next/
 .sites/
+.wrangler/
 contracts/__pycache__/
 *.pyc
 .env*
