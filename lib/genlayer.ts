@@ -4,7 +4,7 @@ import { TransactionStatus } from "genlayer-js/types";
 
 export const SOURCE_FRESHNESS_GUARD_CONTRACT_ADDRESS =
   (process.env.NEXT_PUBLIC_SOURCE_FRESHNESS_GUARD_CONTRACT_ADDRESS ??
-    "0xF8D0D6e5F5aD728Bb2Df7c0C3ef7c5088bC1D666") as `0x${string}`;
+    "0x29bA75C8bE8A62C2A2f93b7ed7C8BE61e4a774C2") as `0x${string}`;
 
 export type WalletAddress = `0x${string}`;
 

@@ -10,7 +10,7 @@ freshness receipt when a source looks stale, changed, risky, or inconclusive.
 - App: https://sourcefreshnessguard-genlayer.galaxthoo.chatgpt.site
 - GitHub repo: https://github.com/klopp78/sourcefreshnessguard-genlayer
 - Contract source: `contracts/source_freshness_guard.py`
-- Studio contract: https://explorer-studio.genlayer.com/address/0xF8D0D6e5F5aD728Bb2Df7c0C3ef7c5088bC1D666
+- Studio contract: https://explorer-studio.genlayer.com/address/0x29bA75C8bE8A62C2A2f93b7ed7C8BE61e4a774C2
 
 The app defaults to the deployed contract address and can be overridden with
 `NEXT_PUBLIC_SOURCE_FRESHNESS_GUARD_CONTRACT_ADDRESS`.
