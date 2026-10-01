@@ -28,6 +28,22 @@ The app defaults to the deployed contract address and can be overridden with
 5. The records page reads `bundle_*` and `fresh_*` records directly from the
    deployed contract.
 
+## Steward Fix: Central Comparison and Robustness
+
+The v2 contract strengthens the review request around central freshness
+comparison and consensus robustness:
+
+- validators recompute source metrics for every rendered page
+- every `fresh_*` receipt stores a pairwise `central_comparison.pairwise_matrix`
+  across primary, secondary, reference, and observation sources
+- the contract derives `readable_source_count`, `contradiction_count`,
+  `corroboration_count`, `baseline_drift_detected`, and `robustness_score`
+  before the LLM explanation is accepted
+- `quorum_inputs_hash` binds commitments, metrics, pairwise comparisons, and
+  baseline hashes so the stored receipt is tied to what validators compared
+- low robustness, source drift, or contradictions force manual review and can
+  downgrade an apparently fresh result
+
 ## Why This Fits GenLayer
 
 Source freshness is not a deterministic string check. Public pages can be stale,
@@ -39,6 +55,7 @@ GenLayer is used for:
 
 - nondeterministic web rendering of public evidence sources
 - consensus over whether sources are fresh, stale, changed, or risky
+- deterministic central source comparison before the final freshness verdict
 - persistent `bundle_*` and `fresh_*` records
 - compact snapshot commitments instead of storing full rendered pages
 
@@ -117,6 +134,7 @@ GenLayer runtime stub and actually executes both write methods,
 `gl.nondet.web.render` and `gl.nondet.exec_prompt` calls. That contract-level
 path verifies the `_now()` fallback for runtimes without `gl.block.timestamp`,
 confirms leader and validator source renders, persists baseline and freshness
-snapshot commitments, rejects unknown bundles, and reads both accepted records
-back by returned ID. Set `PYTHON` to a Python 3 interpreter path if it is not
-available as `python3`, `python`, or `py`.
+snapshot commitments, persists central pairwise comparison and robustness
+fields, rejects unknown bundles, and reads both accepted records back by
+returned ID. Set `PYTHON` to a Python 3 interpreter path if it is not available
+as `python3`, `python`, or `py`.

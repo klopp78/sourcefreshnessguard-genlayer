@@ -164,6 +164,7 @@ class SourceFreshnessGuard(gl.Contract):
             "evidence_bundle_hash": verdict["evidence_bundle_hash"],
             "assessment_context_hash": verdict["assessment_context_hash"],
             "snapshot_commitments": json.loads(verdict["snapshot_commitments_json"]),
+            "central_comparison": json.loads(verdict["central_comparison_json"]),
             "summary": verdict["summary"],
             "created_at": _now(),
         }
@@ -186,6 +187,7 @@ def _baseline(subject: str, cadence: str, staleness: str, snapshots: typing.Sequ
 
 def _judge_freshness(bundle: dict, label: str, observed_at: str, snapshots: typing.Sequence[dict]) -> dict:
     commitments = _commitments(snapshots)
+    central_comparison = _central_comparison(bundle, observed_at, snapshots, commitments)
     context = {
         "bundle_id": bundle["id"],
         "subject": bundle["subject"],
@@ -194,14 +196,15 @@ def _judge_freshness(bundle: dict, label: str, observed_at: str, snapshots: typi
         "observation_label": label,
         "observed_at": observed_at,
         "snapshot_commitments": commitments,
+        "central_comparison": central_comparison,
     }
     prompt = f"""
 You are a GenLayer validator checking whether public source information is fresh.
 
-Read the rendered source snapshots. Look for visible timestamps, update notes,
-version labels, date-bearing announcements, contradictory content, missing pages,
-or source disagreement. Decide whether the subject looks fresh, stale, changed,
-inconclusive, or risky.
+Read the rendered source snapshots and the deterministic central comparison.
+Use the pairwise matrix, source health, extracted date hints, baseline drift,
+and robustness score as the primary evidence. Decide whether the subject looks
+fresh, stale, changed, risky, or inconclusive.
 
 Return only minified JSON with keys: freshness_status, confidence,
 estimated_age_hours, staleness_breached, sources_consistent, tamper_risk,
@@ -226,25 +229,36 @@ Rendered source snapshots:
         "manual_review_required": bool(data["manual_review_required"]),
         "summary": _clean_text(str(data["summary"]), 280, "summary_required"),
     }
-    readable_count = sum(1 for item in snapshots if len(item.get("snapshot_hash", "")) == 64)
-    if readable_count < 3:
+    readable_count = int(central_comparison["readable_source_count"])
+    if readable_count < 3 or int(central_comparison["robustness_score"]) < 55:
         normalized["freshness_status"] = "inconclusive"
         normalized["tamper_risk"] = "unknown"
         normalized["manual_review_required"] = True
-        normalized["confidence"] = min(int(normalized["confidence"]), 50)
+        normalized["confidence"] = min(int(normalized["confidence"]), int(central_comparison["robustness_score"]))
     max_age = int(bundle["max_staleness_hours"])
     observed_age = int(normalized["estimated_age_hours"])
     if observed_age > max_age:
         normalized["staleness_breached"] = True
         if normalized["freshness_status"] == "fresh":
             normalized["freshness_status"] = "stale"
+    if central_comparison["baseline_drift_detected"] is True:
+        normalized["sources_consistent"] = False
+        normalized["manual_review_required"] = True
+        if normalized["freshness_status"] == "fresh":
+            normalized["freshness_status"] = "changed"
+    if int(central_comparison["contradiction_count"]) > 0:
+        normalized["sources_consistent"] = False
+        normalized["manual_review_required"] = True
+        if normalized["tamper_risk"] == "low":
+            normalized["tamper_risk"] = "medium"
     if normalized["freshness_status"] in ["stale", "changed", "risky"] and not normalized["manual_review_required"]:
         normalized["manual_review_required"] = True
 
-    bundle_payload = {"context": context, "normalized": normalized}
+    bundle_payload = {"context": context, "central_comparison": central_comparison, "normalized": normalized}
     normalized["evidence_bundle_hash"] = _sha256(_canonical_json(bundle_payload))
     normalized["assessment_context_hash"] = _sha256(_canonical_json(context))
     normalized["snapshot_commitments_json"] = json.dumps(commitments, separators=(",", ":"))
+    normalized["central_comparison_json"] = json.dumps(central_comparison, separators=(",", ":"))
     return normalized
 
 
@@ -281,6 +295,126 @@ def _commitments(snapshots: typing.Sequence[dict]) -> typing.Sequence[dict]:
     ]
 
 
+def _central_comparison(bundle: dict, observed_at: str, snapshots: typing.Sequence[dict], commitments: typing.Sequence[dict]) -> dict:
+    metrics = [_source_metrics(item) for item in snapshots]
+    pairs = []
+    contradictions = 0
+    corroborations = 0
+    for left_index in range(len(metrics)):
+        for right_index in range(left_index + 1, len(metrics)):
+            pair = _pairwise_comparison(metrics[left_index], metrics[right_index])
+            pairs.append(pair)
+            contradictions += int(pair["contradiction_detected"])
+            corroborations += int(pair["corroborates"])
+
+    readable_count = sum(1 for item in metrics if item["readable"])
+    baseline_hashes = [item.get("snapshot_hash", "") for item in bundle.get("snapshot_commitments", [])]
+    current_hashes = [item.get("snapshot_hash", "") for item in commitments[:3]]
+    drift_detected = _canonical_json(baseline_hashes) != _canonical_json(current_hashes)
+    date_signal_count = sum(int(item["date_signal_count"]) for item in metrics)
+    shared_topic_count = sum(int(pair["shared_topic_count"]) for pair in pairs)
+    health_score = min(100, readable_count * 18 + corroborations * 8 + min(date_signal_count, 12) * 2 + min(shared_topic_count, 10))
+    if contradictions > 0:
+        health_score = max(0, health_score - contradictions * 15)
+    if drift_detected:
+        health_score = max(0, health_score - 12)
+    if readable_count < 3:
+        health_score = min(health_score, 45)
+
+    comparison_payload = {
+        "bundle_id": bundle["id"],
+        "observed_at": observed_at,
+        "source_metrics": metrics,
+        "pairwise_matrix": pairs,
+        "readable_source_count": readable_count,
+        "contradiction_count": contradictions,
+        "corroboration_count": corroborations,
+        "baseline_drift_detected": drift_detected,
+        "date_signal_count": date_signal_count,
+        "robustness_score": health_score,
+    }
+    comparison_payload["quorum_inputs_hash"] = _sha256(_canonical_json({
+        "commitments": commitments,
+        "metrics": metrics,
+        "pairs": pairs,
+        "baseline_hashes": baseline_hashes,
+    }))
+    return comparison_payload
+
+
+def _source_metrics(snapshot: dict) -> dict:
+    excerpt = snapshot.get("snapshot_excerpt", "")
+    lower = excerpt.lower()
+    tokens = _topic_tokens(lower)
+    date_signals = _date_signals(excerpt)
+    freshness_terms = sum(1 for word in ["updated", "current", "latest", "today", "weekly", "2026"] if word in lower)
+    stale_terms = sum(1 for word in ["deprecated", "archived", "outdated", "removed", "expired", "error"] if word in lower)
+    return {
+        "role": snapshot["role"],
+        "canonical_url": snapshot["canonical_url"],
+        "snapshot_hash": snapshot.get("snapshot_hash", ""),
+        "readable": len(snapshot.get("snapshot_hash", "")) == 64,
+        "content_length": len(excerpt),
+        "date_signal_count": len(date_signals),
+        "date_signal_hash": _sha256("|".join(date_signals)) if len(date_signals) > 0 else "",
+        "freshness_term_count": freshness_terms,
+        "stale_term_count": stale_terms,
+        "topic_fingerprint": _sha256("|".join(tokens)) if len(tokens) > 0 else "",
+        "topics": tokens[:10],
+        "fetch_error_hash": _sha256(snapshot.get("fetch_error", "")) if snapshot.get("fetch_error", "") else "",
+    }
+
+
+def _pairwise_comparison(left: dict, right: dict) -> dict:
+    shared_topics = sorted([token for token in left["topics"] if token in right["topics"]])
+    both_readable = bool(left["readable"]) and bool(right["readable"])
+    contradiction = both_readable and (
+        (int(left["freshness_term_count"]) > 0 and int(right["stale_term_count"]) > 0)
+        or (int(right["freshness_term_count"]) > 0 and int(left["stale_term_count"]) > 0)
+    )
+    corroborates = both_readable and len(shared_topics) >= 2 and contradiction is False
+    return {
+        "left_role": left["role"],
+        "right_role": right["role"],
+        "both_readable": both_readable,
+        "shared_topic_count": len(shared_topics),
+        "shared_topic_hash": _sha256("|".join(shared_topics)) if len(shared_topics) > 0 else "",
+        "date_signals_match": left["date_signal_hash"] == right["date_signal_hash"] and left["date_signal_hash"] != "",
+        "contradiction_detected": contradiction,
+        "corroborates": corroborates,
+    }
+
+
+def _topic_tokens(value: str) -> typing.Sequence[str]:
+    normalized = ""
+    for char in value:
+        normalized += char if char.isalnum() else " "
+    ignored = {
+        "about", "after", "also", "and", "are", "but", "for", "from", "has", "have", "into",
+        "not", "that", "the", "this", "with", "your", "https", "www", "com", "org",
+    }
+    tokens = []
+    for token in normalized.split():
+        if len(token) < 4 or token in ignored:
+            continue
+        if token not in tokens:
+            tokens.append(token[:32])
+    return tokens[:40]
+
+
+def _date_signals(value: str) -> typing.Sequence[str]:
+    signals = []
+    clean = value.replace("/", "-").replace(".", "-")
+    parts = clean.split()
+    for part in parts:
+        candidate = part.strip(",:;()[]{}")
+        if len(candidate) >= 10 and candidate[0:4].isdigit() and candidate[4] == "-" and candidate[5:7].isdigit():
+            signals.append(candidate[:10])
+        if len(candidate) >= 8 and candidate[-4:].isdigit() and candidate[-4:].startswith("20"):
+            signals.append(candidate[-4:])
+    return sorted(list(dict.fromkeys(signals)))[:20]
+
+
 def _baseline_equal(a: dict, b: dict) -> bool:
     return a["baseline_hash"] == b["baseline_hash"] and _canonical_json(a["snapshot_commitments"]) == _canonical_json(b["snapshot_commitments"])
 
@@ -297,6 +431,7 @@ def _verdict_equal(a: dict, b: dict) -> bool:
         "evidence_bundle_hash",
         "assessment_context_hash",
         "snapshot_commitments_json",
+        "central_comparison_json",
     ]
     return all(a[key] == b[key] for key in keys)
 

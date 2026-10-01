@@ -202,6 +202,15 @@ def main():
         raise SystemExit("evaluate_freshness did not persist tamper risk")
     if len(report["snapshot_commitments"]) != 4:
         raise SystemExit("freshness check must persist four source commitments")
+    comparison = report.get("central_comparison")
+    if not comparison:
+        raise SystemExit("freshness check must persist central source comparison")
+    if len(comparison.get("pairwise_matrix", [])) != 6:
+        raise SystemExit("central comparison must include every pairwise source comparison")
+    if "quorum_inputs_hash" not in comparison or len(comparison["quorum_inputs_hash"]) != 64:
+        raise SystemExit("central comparison must bind validator quorum inputs")
+    if int(comparison.get("robustness_score", 0)) < 55:
+        raise SystemExit("freshness comparison should produce a robust score for healthy fixtures")
     if report["created_at"] != 0:
         raise SystemExit("_now fallback should apply to freshness checks")
     if len([prompt for prompt in _Nondet.prompts if "source information is fresh" in prompt]) != 2:

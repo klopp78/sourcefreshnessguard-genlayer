@@ -13,5 +13,9 @@ assert.match(source, /reference_source/);
 assert.match(source, /observation_context/);
 assert.match(source, /manual_review_required/);
 assert.match(source, /tamper_risk/);
+assert.match(source, /central_comparison/);
+assert.match(source, /pairwise_matrix/);
+assert.match(source, /robustness_score/);
+assert.match(source, /quorum_inputs_hash/);
 
 console.log("SourceFreshnessGuard lifecycle source check passed");

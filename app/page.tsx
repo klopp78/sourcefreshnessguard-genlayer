@@ -32,11 +32,11 @@ export default function Home() {
               </div>
               <div>
                 <span>Consensus read</span>
-                <strong>Validators render each public page and compare timestamps, versions, and contradictions</strong>
+                <strong>Validators render every page, recompute a pairwise source matrix, and bind quorum inputs</strong>
               </div>
               <div>
                 <span>Freshness receipt</span>
-                <strong>fresh_* records preserve commitments, status, age estimate, and tamper risk</strong>
+                <strong>fresh_* records preserve commitments, central comparison, robustness score, and tamper risk</strong>
               </div>
             </div>
           </div>
@@ -83,17 +83,17 @@ export default function Home() {
           </p>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             <div>
-              <strong>Snapshot commitments</strong>
-              <span>Every accepted record binds what validators rendered.</span>
-            </div>
-            <div>
-              <strong>Freshness threshold</strong>
-              <span>Each check compares visible age against the bundle window.</span>
-            </div>
-            <div>
+            <strong>Snapshot commitments</strong>
+            <span>Every accepted record binds what validators rendered.</span>
+          </div>
+          <div>
+              <strong>Central comparison</strong>
+              <span>Each check stores pairwise source agreement and contradiction signals.</span>
+          </div>
+          <div>
               <strong>Tamper-risk signal</strong>
-              <span>Receipts include source consistency and manual-review flags.</span>
-            </div>
+              <span>Receipts include robustness score, source consistency, and manual-review flags.</span>
+          </div>
           </div>
         </div>
       </section>
