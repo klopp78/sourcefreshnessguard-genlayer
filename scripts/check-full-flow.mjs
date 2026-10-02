@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const bundleId = "bundle_7cf7a5d6b3de4fb64544";
 const checkId = "fresh_96f9b78990ad7d7c5a66";
@@ -119,6 +120,12 @@ assert.deepEqual(
 );
 assert.equal(outcome.returnedBundleId, bundleId);
 assert.equal(outcome.returnedCheckId, checkId);
+
+const walletSource = readFileSync(new URL("../lib/genlayer.ts", import.meta.url), "utf8");
+assert.match(walletSource, /wallet_switchEthereumChain/);
+assert.match(walletSource, /wallet_addEthereumChain/);
+assert.doesNotMatch(walletSource, /client\.connect\(/);
+assert.doesNotMatch(walletSource, /wallet_getSnaps|wallet_requestSnaps/);
 
 const pythonRunners = [
   process.env.PYTHON,

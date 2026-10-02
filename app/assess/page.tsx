@@ -64,7 +64,8 @@ export default function AssessPage() {
         Ask validators to render the registered sources plus an observation URL
         and store a fresh_* receipt tied to the bundle baseline, central
         comparison matrix, and validator quorum inputs. Evaluate freshness
-        switches the wallet to GenLayer Studio before sending the transaction.
+        switches the wallet to GenLayer Studio with standard wallet RPC methods
+        before sending the transaction; no MetaMask Snap is required.
       </p>
       <section className="tool-panel mt-8 grid gap-4">
         <Field id="bundle" label="Bundle ID" value={bundleId} setValue={setBundleId} />

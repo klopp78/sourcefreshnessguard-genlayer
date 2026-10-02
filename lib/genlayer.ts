@@ -52,7 +52,45 @@ function createFreshnessWriteClient(walletAddress: WalletAddress) {
 }
 
 async function connectStudionet(client: ReturnType<typeof createFreshnessWriteClient>) {
-  await client.connect("studionet");
+  const provider = window.ethereum;
+  if (!provider) throw new Error("No browser wallet detected.");
+
+  const chainId = `0x${studionet.id.toString(16)}`;
+  const currentChainId = await provider.request({ method: "eth_chainId" });
+  if (typeof currentChainId === "string" && currentChainId.toLowerCase() === chainId) return;
+
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId }],
+    });
+  } catch (error) {
+    if (!isUnknownChainError(error)) throw error;
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId,
+        chainName: studionet.name,
+        rpcUrls: [...studionet.rpcUrls.default.http],
+        nativeCurrency: studionet.nativeCurrency,
+        blockExplorerUrls: [studionet.blockExplorers.default.url],
+      }],
+    });
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId }],
+    });
+  }
+
+  client.chain = studionet;
+}
+
+function isUnknownChainError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { code?: unknown; message?: unknown; data?: { originalError?: { code?: unknown } } };
+  return record.code === 4902 ||
+    record.data?.originalError?.code === 4902 ||
+    (typeof record.message === "string" && /unknown|unrecognized|not added/i.test(record.message));
 }
 
 function contractAddress(contractAddress?: `0x${string}`) {
