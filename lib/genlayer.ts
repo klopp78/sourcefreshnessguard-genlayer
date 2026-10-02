@@ -51,6 +51,10 @@ function createFreshnessWriteClient(walletAddress: WalletAddress) {
   });
 }
 
+async function connectStudionet(client: ReturnType<typeof createFreshnessWriteClient>) {
+  await client.connect("studionet");
+}
+
 function contractAddress(contractAddress?: `0x${string}`) {
   return contractAddress ?? SOURCE_FRESHNESS_GUARD_CONTRACT_ADDRESS;
 }
@@ -88,6 +92,7 @@ export async function registerSourceBundle({
   contractAddress: overrideAddress,
 }: SourceBundleInput) {
   const client = createFreshnessWriteClient(walletAddress);
+  await connectStudionet(client);
   const address = contractAddress(overrideAddress);
   const hash = await client.writeContract({
     address,
@@ -117,6 +122,7 @@ export async function evaluateFreshness({
   contractAddress: overrideAddress,
 }: FreshnessInput) {
   const client = createFreshnessWriteClient(walletAddress);
+  await connectStudionet(client);
   const address = contractAddress(overrideAddress);
   const hash = await client.writeContract({
     address,

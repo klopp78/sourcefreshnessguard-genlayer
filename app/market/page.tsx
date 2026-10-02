@@ -66,7 +66,8 @@ export default function MarketPage() {
       <h1 className="mt-7 text-4xl font-semibold">Register source bundle</h1>
       <p className="mt-3 max-w-2xl text-lg leading-8 text-[#60707b]">
         Store the monitored subject, update cadence, staleness window, and three
-        public sources before any freshness receipt is created.
+        public sources before any freshness receipt is created. Register bundle
+        switches the wallet to GenLayer Studio before sending the transaction.
       </p>
       <section className="tool-panel mt-8 grid gap-4">
         <Field id="subject" label="Subject" value={subject} setValue={setSubject} />

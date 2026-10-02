@@ -63,7 +63,8 @@ export default function AssessPage() {
       <p className="mt-3 max-w-2xl text-lg leading-8 text-[#60707b]">
         Ask validators to render the registered sources plus an observation URL
         and store a fresh_* receipt tied to the bundle baseline, central
-        comparison matrix, and validator quorum inputs.
+        comparison matrix, and validator quorum inputs. Evaluate freshness
+        switches the wallet to GenLayer Studio before sending the transaction.
       </p>
       <section className="tool-panel mt-8 grid gap-4">
         <Field id="bundle" label="Bundle ID" value={bundleId} setValue={setBundleId} />
